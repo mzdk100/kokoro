@@ -4,6 +4,9 @@ use {
     chinese_number::{ChineseCountMethod, ChineseToNumber},
     jieba_rs::Jieba,
     pinyin::ToPinyin,
+    serde_json,
+    std::fs::File,
+    std::io::Read,
     std::{collections::HashMap, sync::LazyLock},
 };
 
@@ -149,31 +152,36 @@ const NOT_ERHUA: [&str; 44] = [
 ];
 const UNK: &str = "❓";
 
-static PHRASES_DICT: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
+static PHRASES_DICT: LazyLock<HashMap<String, String>> = LazyLock::new(|| {
     let mut map = HashMap::new();
-    map.insert("开户行", "kai1 hu4 hang2");
-    map.insert("发卡行", "fa4 ka3 hang2");
-    map.insert("放款行", "fang4 kuan3 hang2");
-    map.insert("茧行", "jian3 hang2");
-    map.insert("行号", "hang2 hao4");
-    map.insert("各地", "ge4 di4");
-    map.insert("借还款", "jie4 huan2 kuan3");
-    map.insert("时间为", "shi2 jian1 wei2");
-    map.insert("角色", "jue2 se4");
-    map.insert("为准", "wei2 zhun3");
-    map.insert("色差", "se4 cha1");
-    map.insert("嗲", "dia3");
-    map.insert("呗", "bei5");
-    map.insert("不", "bu4");
-    map.insert("咗", "zuo5");
-    map.insert("嘞", "lei5");
-    map.insert("掺和", "chan1 huo5");
+    let file_path = "data/phrases.json";
+    match File::open(file_path) {
+        Ok(mut file) => {
+            let mut data = String::new();
+            if file.read_to_string(&mut data).is_ok() {
+                if let Ok(phrases) = serde_json::from_str::<HashMap<String, String>>(&data) {
+                    for (k, v) in phrases {
+                        map.insert(k, v);
+                    }
+                } else {
+                    eprintln!("无法解析 JSON 文件: {}", file_path);
+                }
+            } else {
+                eprintln!("无法读取文件: {}", file_path);
+            }
+        }
+        Err(_) => {
+            eprintln!("无法打开文件: {}", file_path);
+        }
+    }
     map
 });
+
+
 static JIEBA: LazyLock<Jieba> = LazyLock::new(|| {
     let mut jieba = Jieba::new();
     for k in PHRASES_DICT.keys() {
-        jieba.add_word(*k, None, Some("x"));
+        jieba.add_word(k, None, Some("x"));
     }
 
     jieba
