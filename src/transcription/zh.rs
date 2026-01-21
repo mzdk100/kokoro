@@ -287,8 +287,8 @@ pub(crate) fn convert_zero_consonant(pinyin: &str) -> String {
 
 pub(crate) fn split_initial(pinyin: &str) -> (&'static str, &str) {
     for &initial in &INITIALS {
-        if pinyin.starts_with(initial) {
-            return (initial, &pinyin[initial.len()..]);
+        if let Some(stripped) = pinyin.strip_prefix(initial) {
+            return (initial, stripped);
         }
     }
     ("", pinyin)
@@ -344,8 +344,8 @@ pub fn pinyin_to_ipa(pinyin: &str) -> Result<Vec<Vec<String>>, PinyinError> {
     let initials = INITIAL_MAPPING
         .get(initial_part)
         .map_or(vec![vec![Default::default()]], |i| {
-            i.into_iter()
-                .map(|i| i.into_iter().map(|i| i.to_string()).collect())
+            i.iter()
+                .map(|i| i.iter().map(|i| i.to_string()).collect())
                 .collect()
         });
 

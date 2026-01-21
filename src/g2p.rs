@@ -157,22 +157,22 @@ fn word2ipa_en(word: &str) -> Result<String, G2PError> {
 
 fn to_half_shape(text: &str) -> String {
     let mut result = String::with_capacity(text.len() * 2); // 预分配合理空间
-    let mut chars = text.chars().peekable();
+    let chars = text.chars().peekable();
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         match c {
             // 处理需要后看的情况
-            '«' | '《' => result.push_str("“"),
-            '»' | '》' => result.push_str("”"),
-            '（' => result.push_str("("),
-            '）' => result.push_str(")"),
+            '«' | '《' => result.push('“'),
+            '»' | '》' => result.push('”'),
+            '（' => result.push('('),
+            '）' => result.push(')'),
             // 简单替换规则
-            '、' | '，' => result.push_str(","),
-            '。' => result.push_str("."),
-            '！' => result.push_str("!"),
-            '：' => result.push_str(":"),
-            '；' => result.push_str(";"),
-            '？' => result.push_str("?"),
+            '、' | '，' => result.push(','),
+            '。' => result.push('.'),
+            '！' => result.push('!'),
+            '：' => result.push(':'),
+            '；' => result.push(';'),
+            '？' => result.push('?'),
             // 默认字符
             _ => result.push(c),
         }
@@ -209,7 +209,7 @@ fn num_repr(text: &str) -> Result<String, G2PError> {
 }
 
 pub fn g2p(text: &str, use_v11: bool) -> Result<String, G2PError> {
-    let text = num_repr(&text)?;
+    let text = num_repr(text)?;
     let sentence_pattern = Regex::new(
         r#"([\u4E00-\u9FFF]+)|([，。：·？、！《》（）【】〖〗〔〕“”‘’〈〉…—　]+)|([\u0000-\u00FF]+)+"#,
     )?;
@@ -241,24 +241,22 @@ pub fn g2p(text: &str, use_v11: bool) -> Result<String, G2PError> {
             }
             (_, _, Some(text)) => {
                 for i in en_word_pattern.captures_iter(text.as_str()) {
-                    let c = (&i[0]).chars().nth(0).unwrap_or_default();
+                    let c = (i[0]).chars().next().unwrap_or_default();
                     if c == '\''
                         || c == '_'
                         || c == '-'
-                        || c <= 'z' && c >= 'a'
-                        || c <= 'Z' && c >= 'A'
+                        || c.is_ascii_lowercase()
+                        || c.is_ascii_uppercase()
                     {
                         let i = &i[0];
-                        if result
-                            .trim_end()
-                            .ends_with(|c| c == '.' || c == ',' || c == '!' || c == '?')
+                        if result.trim_end().ends_with(['.', ',', '!', '?'])
                             && !result.ends_with(' ')
                         {
                             result.push(' ');
                         }
                         result.push_str(&word2ipa_en(i)?);
                     } else if c == ' ' && result.ends_with(' ') {
-                        result.push_str((&i[0]).trim_start());
+                        result.push_str((i[0]).trim_start());
                     } else {
                         result.push_str(&i[0]);
                     }

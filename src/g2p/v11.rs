@@ -264,14 +264,12 @@ fn merge_bu(seg: &mut Vec<(String, String)>) {
     while i < seg.len() {
         let (left, right) = seg.split_at_mut(i);
         let (word, pos) = &mut right[0];
-        if !X_ENG.contains(&pos.as_str()) {
-            if i > 0 {
-                let last_word = &left[i - 1].0;
-                if last_word == BU {
-                    *word = BU.to_owned() + word;
-                    seg.remove(i - 1);
-                    i -= 1; // Adjust index after removal
-                }
+        if !X_ENG.contains(&pos.as_str()) && i > 0 {
+            let last_word = &left[i - 1].0;
+            if last_word == BU {
+                *word = BU.to_owned() + word;
+                seg.remove(i - 1);
+                i -= 1; // Adjust index after removal
             }
         }
         i += 1;
@@ -367,15 +365,13 @@ fn merge_continuous_three_tones(seg: &mut Vec<(String, String)>) {
             && pinyin_list[i - 1].iter().all(|i| i.ends_with("3"))
             && pinyin_list[i].iter().all(|i| i.ends_with("3"))
             && !merge_last[i - 1]
+            && !is_reduplication(&left[i - 1].0)
+            && left[i - 1].0.chars().count() + word.chars().count() <= 3
         {
-            if !is_reduplication(&left[i - 1].0)
-                && left[i - 1].0.chars().count() + word.chars().count() <= 3
-            {
-                merge_last[i] = true;
-                left[i - 1].0 += word;
-                seg.remove(i);
-                i -= 1;
-            }
+            merge_last[i] = true;
+            left[i - 1].0 += word;
+            seg.remove(i);
+            i -= 1;
         }
         i += 1;
     }
@@ -398,20 +394,16 @@ fn merge_continuous_three_tones_2(seg: &mut Vec<(String, String)>) {
         let (left, right) = seg.split_at_mut(i);
         let (word, pos) = &right[0];
         if !X_ENG.contains(&pos.as_str())
-            && pinyin_list[i - 1]
-                .last()
-                .map_or(false, |i| i.ends_with("3"))
-            && pinyin_list[i].first().map_or(false, |i| i.ends_with("3"))
+            && pinyin_list[i - 1].last().is_some_and(|i| i.ends_with("3"))
+            && pinyin_list[i].first().is_some_and(|i| i.ends_with("3"))
             && !merge_last[i - 1]
+            && !is_reduplication(&left[i - 1].0)
+            && left[i - 1].0.chars().count() + word.chars().count() <= 3
         {
-            if !is_reduplication(&left[i - 1].0)
-                && left[i - 1].0.chars().count() + word.chars().count() <= 3
-            {
-                merge_last[i] = true;
-                left[i - 1].0 += word;
-                seg.remove(i);
-                i -= 1;
-            }
+            merge_last[i] = true;
+            left[i - 1].0 += word;
+            seg.remove(i);
+            i -= 1;
         }
         i += 1;
     }
@@ -440,57 +432,58 @@ fn pre_merge_for_modify(seg: &mut Vec<(String, String)>) {
     merge_er(seg);
 }
 
-fn bu_sandhi(word: &str, pinyins: &mut Vec<String>) {
+fn bu_sandhi(word: &str, pinyins: &mut [String]) {
     let len = word.chars().count();
     // e.g. 看不懂
     if len == 3 && word.chars().nth(1) == BU.chars().next() {
-        pinyins.get_mut(1).and_then(|i| {
+        if let Some(i) = pinyins.get_mut(1) {
             i.pop();
-            Some(i.push('5'))
-        });
+            i.push('5');
+        }
     } else {
         for (i, ch) in word.chars().enumerate() {
             // "不" before tone4 should be bu2, e.g. 不怕
-            if Some(ch) == BU.chars().next() && i + 1 < len && pinyins[i + 1].ends_with("4") {
-                pinyins.get_mut(i).and_then(|i| {
-                    i.pop();
-                    Some(i.push('2'))
-                });
+            if BU.starts_with(ch)
+                && i + 1 < len
+                && pinyins[i + 1].ends_with("4")
+                && let Some(i) = pinyins.get_mut(1)
+            {
+                i.pop();
+                i.push('2');
             }
         }
     }
 }
 
-fn yi_sandhi(word: &str, pinyins: &mut Vec<String>) {
+fn yi_sandhi(word: &str, pinyins: &mut [String]) {
     // "一" in number sequences, e.g. 一零零, 二一零
     if word.find(YI).is_some()
         && (word
             .chars()
-            .filter(|c| Some(*c) != YI.chars().next())
+            .filter(|c| !YI.starts_with(*c))
             .all(char::is_numeric)
             || ChineseToNumber::<i32>::to_number(&word, ChineseCountMethod::TenThousand).is_ok())
     {
-        return;
     }
     // "一" between reduplication words shold be yi5, e.g. 看一看
     else if word.chars().count() == 3
         && word.chars().nth(1) == YI.chars().next()
         && word.chars().next() == word.chars().next_back()
     {
-        pinyins.get_mut(1).and_then(|i| {
+        if let Some(i) = pinyins.get_mut(1) {
             i.pop();
-            Some(i.push('5'))
-        });
+            i.push('5');
+        }
     }
     // when "一" is ordinal word, it should be yi1
     else if word.starts_with("第一") {
-        pinyins.get_mut(1).and_then(|i| {
+        if let Some(i) = pinyins.get_mut(1) {
             i.pop();
-            Some(i.push('1'))
-        });
+            i.push('1');
+        }
     } else {
         for (i, ch) in word.chars().enumerate() {
-            if Some(ch) == YI.chars().next() && i + 1 < word.chars().count() {
+            if YI.starts_with(ch) && i + 1 < word.chars().count() {
                 // "一" before tone4 should be yi2, e.g. 一段
                 if pinyins[i + 1]
                     .chars()
@@ -498,10 +491,10 @@ fn yi_sandhi(word: &str, pinyins: &mut Vec<String>) {
                     .map(|c| c == '4' || c == '5')
                     .unwrap_or_default()
                 {
-                    pinyins.get_mut(i).and_then(|i| {
+                    if let Some(i) = pinyins.get_mut(i) {
                         i.pop();
-                        Some(i.push('2'))
-                    });
+                        i.push('1');
+                    }
                 }
                 // "一" before non-tone4 should be yi4, e.g. 一天
                 else {
@@ -511,11 +504,10 @@ fn yi_sandhi(word: &str, pinyins: &mut Vec<String>) {
                         .nth(i + 1)
                         .map(|c| !PUNC.contains(c))
                         .unwrap_or_default()
+                        && let Some(i) = pinyins.get_mut(i)
                     {
-                        pinyins.get_mut(i).and_then(|i| {
-                            i.pop();
-                            Some(i.push('4'))
-                        });
+                        i.pop();
+                        i.push('4');
                     }
                 }
             }
@@ -547,7 +539,7 @@ fn split_word(word: &str) -> (String, String) {
 /// word: "家里"
 /// pos: "s"
 /// finals: ['ia1', 'i3']
-fn neural_sandhi(word: &str, pos: &str, pinyins: &mut Vec<String>) {
+fn neural_sandhi(word: &str, pos: &str, pinyins: &mut [String]) {
     if MUST_NOT_NEURAL_TONE_WORDS.contains(&word) {
         return;
     }
@@ -561,11 +553,10 @@ fn neural_sandhi(word: &str, pos: &str, pinyins: &mut Vec<String>) {
                 .next()
                 .map(|c| c == 'n' || c == 'v' || c == 'a')
                 .unwrap_or_default()
+            && let Some(i) = pinyins.get_mut(j)
         {
-            pinyins.get_mut(j).and_then(|i| {
-                i.pop();
-                Some(i.push('5'))
-            });
+            i.pop();
+            i.push('5');
         }
     }
 
@@ -576,18 +567,15 @@ fn neural_sandhi(word: &str, pos: &str, pinyins: &mut Vec<String>) {
         .find(|(_, c)| c == &'个')
         .map(|i| i.0 as isize)
         .unwrap_or(-1);
-    if (len >= 1
-        && word
-            .chars()
-            .next_back()
-            .map(|c| "吧呢啊呐噻嘛吖嗨呐哦哒滴哩哟喽啰耶喔诶".contains(c))
-            .unwrap_or_default())
-        || (len >= 1
-            && word
-                .chars()
-                .next_back()
-                .map(|c| "的地得".contains(c))
-                .unwrap_or_default())
+    if (word
+                 .chars()
+                 .next_back()
+                 .map(|c| "的地得".contains(c))
+                 .unwrap_or_default() || word
+             .chars()
+             .next_back()
+             .map(|c| "吧呢啊呐噻嘛吖嗨呐哦哒滴哩哟喽啰耶喔诶".contains(c))
+             .unwrap_or_default()) && len >= 1
         // e.g. 走了, 看着, 去过
         || (len == 1 && "了着过".find(word).is_some() && ["ul", "uz", "ug"].contains(&pos))||(len > 1
         && word
@@ -619,12 +607,12 @@ fn neural_sandhi(word: &str, pos: &str, pinyins: &mut Vec<String>) {
         .map(|c| "上下进出回过起开".contains(c))
         .unwrap_or_default()
     ) {
-        pinyins.last_mut().and_then(|i| {
+        if let Some(i) = pinyins.last_mut() {
             if i.ends_with(char::is_numeric) {
                 i.pop();
             }
-            Some(i.push('5'))
-        });
+            i.push('5');
+        }
     }
     // 个做量词
     else if (ge_idx >= 1
@@ -640,18 +628,17 @@ fn neural_sandhi(word: &str, pos: &str, pinyins: &mut Vec<String>) {
                 .unwrap_or_default()))
         || word == "个"
     {
-        pinyins.get_mut(ge_idx as usize).and_then(|i| {
+        if let Some(i) = pinyins.get_mut(ge_idx as usize) {
             i.pop();
-            Some(i.push('5'))
-        });
+            let _: () = i.push('5');
+        }
     } else {
-        if MUST_NEURAL_TONE_WORDS.contains(&word)
-            || (len >= 2 && MUST_NEURAL_TONE_WORDS.contains(&split_at_char(word, len - 2).1))
+        if (MUST_NEURAL_TONE_WORDS.contains(&word)
+            || (len >= 2 && MUST_NEURAL_TONE_WORDS.contains(&split_at_char(word, len - 2).1)))
+            && let Some(i) = pinyins.last_mut()
         {
-            pinyins.last_mut().and_then(|i| {
-                i.pop();
-                Some(i.push('5'))
-            });
+            i.pop();
+            i.push('5');
         }
     }
 
@@ -660,67 +647,67 @@ fn neural_sandhi(word: &str, pos: &str, pinyins: &mut Vec<String>) {
 
     // conventional neural in Chinese
     let len = left_word.chars().count();
-    if MUST_NEURAL_TONE_WORDS.contains(&left_word.as_str())
-        || (len >= 2 && MUST_NEURAL_TONE_WORDS.contains(&split_at_char(&left_word, len - 2).1))
+    if (MUST_NEURAL_TONE_WORDS.contains(&left_word.as_str())
+        || (len >= 2 && MUST_NEURAL_TONE_WORDS.contains(&split_at_char(&left_word, len - 2).1)))
+        && let Some(i) = left_pinyins.last_mut()
     {
-        left_pinyins.last_mut().and_then(|i| {
-            i.pop();
-            Some(i.push('5'))
-        });
+        i.pop();
+        i.push('5');
     }
     let len = right_word.chars().count();
-    if MUST_NEURAL_TONE_WORDS.contains(&right_word.as_str())
-        || (len >= 2 && MUST_NEURAL_TONE_WORDS.contains(&split_at_char(&right_word, len - 2).1))
+    if (MUST_NEURAL_TONE_WORDS.contains(&right_word.as_str())
+        || (len >= 2 && MUST_NEURAL_TONE_WORDS.contains(&split_at_char(&right_word, len - 2).1)))
+        && let Some(i) = right_pinyins.last_mut()
     {
-        right_pinyins.last_mut().and_then(|i| {
-            i.pop();
-            Some(i.push('5'))
-        });
+        i.pop();
+        i.push('5');
     }
 }
 
-fn three_sandhi(word: &str, pinyins: &mut Vec<String>) {
+fn three_sandhi(word: &str, pinyins: &mut [String]) {
     let len = word.chars().count();
     if len == 2 && pinyins.iter().all(|i| i.ends_with("3")) {
-        pinyins.first_mut().and_then(|i| {
+        if let Some(i) = pinyins.first_mut() {
             i.pop();
-            Some(i.push('2'))
-        });
+            i.push('2');
+        }
     } else if len == 3 {
         let (left_word, _) = split_word(word);
         if pinyins.iter().all(|i| i.ends_with("3")) {
             //  disyllabic + monosyllabic, e.g. 蒙古/包
             if left_word.chars().count() == 2 {
-                pinyins.first_mut().and_then(|i| {
+                if let Some(i) = pinyins.first_mut() {
                     i.pop();
-                    Some(i.push('2'))
-                });
-                pinyins.get_mut(1).and_then(|i| {
+                    let _: () = i.push('2');
+                }
+                if let Some(i) = pinyins.get_mut(1) {
                     i.pop();
-                    Some(i.push('2'))
-                });
+                    i.push('2');
+                }
             }
             //  monosyllabic + disyllabic, e.g. 纸/老虎
-            else if left_word.chars().count() == 1 {
-                pinyins.get_mut(1).and_then(|i| {
-                    i.pop();
-                    Some(i.push('2'))
-                });
+            else if left_word.chars().count() == 1
+                && let Some(i) = pinyins.get_mut(1)
+            {
+                i.pop();
+                i.push('2');
             }
         } else {
             let (left_pinyins, right_pinyins) = pinyins.split_at_mut(left_word.chars().count());
             // e.g. 所有/人
-            if left_pinyins.iter().all(|i| i.ends_with("3")) && left_pinyins.len() == 2 {
-                left_pinyins.first_mut().and_then(|i| {
-                    i.pop();
-                    Some(i.push('2'))
-                });
+            if left_pinyins.iter().all(|i| i.ends_with("3"))
+                && left_pinyins.len() == 2
+                && let Some(i) = left_pinyins.first_mut()
+            {
+                i.pop();
+                i.push('2');
             }
-            if right_pinyins.iter().all(|i| i.ends_with("3")) && right_pinyins.len() == 2 {
-                right_pinyins.first_mut().and_then(|i| {
-                    i.pop();
-                    Some(i.push('2'))
-                });
+            if right_pinyins.iter().all(|i| i.ends_with("3"))
+                && right_pinyins.len() == 2
+                && let Some(i) = right_pinyins.first_mut()
+            {
+                i.pop();
+                i.push('2');
             }
             // e.g. 好/喜欢
             if !right_pinyins.iter().all(|i| i.ends_with("3"))
@@ -732,28 +719,27 @@ fn three_sandhi(word: &str, pinyins: &mut Vec<String>) {
                     .last()
                     .map(|i| i.ends_with("3"))
                     .unwrap_or_default()
+                && let Some(i) = left_pinyins.last_mut()
             {
-                left_pinyins.last_mut().and_then(|i| {
-                    i.pop();
-                    Some(i.push('2'))
-                });
+                i.pop();
+                let _: () = i.push('2');
             }
         }
     }
     // split idiom into two words who's length is 2
     else if len == 4 {
         let (left_pinyins, right_pinyins) = pinyins.split_at_mut(2);
-        if left_pinyins.iter().all(|i| i.ends_with("3")) {
-            left_pinyins.first_mut().and_then(|i| {
-                i.pop();
-                Some(i.push('2'))
-            });
+        if left_pinyins.iter().all(|i| i.ends_with("3"))
+            && let Some(i) = left_pinyins.first_mut()
+        {
+            i.pop();
+            i.push('2');
         }
-        if right_pinyins.iter().all(|i| i.ends_with("3")) {
-            right_pinyins.first_mut().and_then(|i| {
-                i.pop();
-                Some(i.push('2'))
-            });
+        if right_pinyins.iter().all(|i| i.ends_with("3"))
+            && let Some(i) = right_pinyins.first_mut()
+        {
+            i.pop();
+            i.push('2');
         }
     }
 }
@@ -801,23 +787,25 @@ fn get_pinyin_fine(word: &str) -> Vec<String> {
 /// * `word`: 分词
 /// * `pos`: 词性
 /// * `pinyins`: 带调拼音, [pinyin1, ..., pinyinN]
-fn modified_tone(word: &str, pos: &str, pinyins: &mut Vec<String>) {
+fn modified_tone(word: &str, pos: &str, pinyins: &mut [String]) {
     bu_sandhi(word, pinyins);
     yi_sandhi(word, pinyins);
     neural_sandhi(word, pos, pinyins);
     three_sandhi(word, pinyins);
 }
 
-fn merge_erhua(word: &str, pos: &str, pinyins: &mut Vec<String>) {
+fn merge_erhua(word: &str, pos: &str, pinyins: &mut [String]) {
     // fix er1
     let mut i = 0;
     while i < pinyins.len() {
         if i == pinyins.len() - 1
             && word.chars().nth(i).map(|c| c == '儿').unwrap_or_default()
             && pinyins[i].ends_with("er1")
+            && let Some(i) = pinyins.get_mut(i)
         {
-            pinyins.get_mut(i).and_then(|i| Some(*i = "er2".to_owned()));
+            let _: () = *i = "er2".to_owned();
         }
+
         i += 1;
     }
 
@@ -838,14 +826,13 @@ fn merge_erhua(word: &str, pos: &str, pinyins: &mut Vec<String>) {
         if i == pinyins.len() - 1
             && word.chars().nth(i).map(|c| c == '儿').unwrap_or_default()
             && ["er2", "er5"].contains(&pinyins[i].as_str())
-            && !NOT_ERHUA.contains(&split_at_char(&word, word.chars().count() - 2).1)
+            && !NOT_ERHUA.contains(&split_at_char(word, word.chars().count() - 2).1)
         {
             pinyins.last_mut().and_then(|i| {
-                let Some(c) = i.pop() else {
-                    return None;
-                };
+                let c = i.pop()?;
                 i.push('R');
-                Some(i.push(c))
+                let _: () = i.push(c);
+                Some(())
             });
         }
         i += 1;
@@ -903,8 +890,10 @@ pub(super) fn g2p(text: &str, with_erhua: bool) -> String {
                     tk.phonemes = word.to_owned();
                 }
                 tokens.push(tk);
-            } else if !tokens.is_empty() {
-                tokens.last_mut().and_then(|i| Some(i.whitespace += word));
+            } else if !tokens.is_empty()
+                && let Some(i) = tokens.last_mut()
+            {
+                let _: () = i.whitespace += word;
             }
             continue;
         } else if !tokens.is_empty()
@@ -916,10 +905,9 @@ pub(super) fn g2p(text: &str, with_erhua: bool) -> String {
                 .last()
                 .map(|i| i.whitespace.is_empty())
                 .unwrap_or_default()
+            && let Some(i) = tokens.last_mut()
         {
-            tokens
-                .last_mut()
-                .and_then(|i| Some(i.whitespace = "/".to_owned()));
+            let _: () = i.whitespace = "/".to_owned();
         }
 
         // g2p
