@@ -1,8 +1,8 @@
-use futures::StreamExt;
-use kokoro_tts::{KokoroTts, Voice};
-use rodio::{OutputStreamBuilder, Sink, buffer::SamplesBuffer};
-use std::sync::Arc;
-use tokio::time::{Duration, sleep};
+use {
+    futures::StreamExt,
+    kokoro_tts::{KokoroTts, Voice},
+    voxudio::AudioPlayer,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -38,20 +38,14 @@ async fn main() -> anyhow::Result<()> {
 ",
     )
     .await?;
+    drop(sink);
 
-    let output_stream_builder = OutputStreamBuilder::from_default_device()?;
-    let output_stream = output_stream_builder.open_stream()?;
-    let stream_handle = output_stream.mixer();
-    let player = Arc::new(Sink::connect_new(&stream_handle));
-    let player2 = player.clone();
-    tokio::spawn(async move {
-        while let Some((audio, took)) = stream.next().await {
-            player.append(SamplesBuffer::new(1, 24000, audio));
-            println!("Synth took: {:?}", took);
-        }
-    });
+    let mut player = AudioPlayer::new()?;
+    player.play()?;
+    while let Some((audio, took)) = stream.next().await {
+        player.write::<24000>(&audio, 1).await?;
+        println!("Synth took: {:?}", took);
+    }
 
-    sleep(Duration::from_secs(20)).await;
-    player2.sleep_until_end();
     Ok(())
 }
