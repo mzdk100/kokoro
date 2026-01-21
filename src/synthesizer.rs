@@ -14,7 +14,7 @@ use {
     tokio::sync::Mutex,
 };
 
-async fn synth_v10<'a, P, S>(
+async fn synth_v10<P, S>(
     model: Weak<Mutex<Session>>,
     phonemes: S,
     pack: P,
@@ -29,7 +29,7 @@ where
     let phonemes = Array::from_shape_vec((1, phonemes.len()), phonemes)?;
     let ref_s = pack.as_ref()[phonemes.len() - 1]
         .first()
-        .map(|i| i.clone())
+        .cloned()
         .unwrap_or_default();
 
     let style = Array::from_shape_vec((1, ref_s.len()), ref_s)?;
@@ -74,7 +74,7 @@ where
         let phonemes = Array::from_shape_vec((1, p.len()), p.collect())?;
         let ref_s = pack.as_ref()[phonemes.len() - 1]
             .first()
-            .map(|i| i.clone())
+            .cloned()
             .unwrap_or(vec![0.; 256]);
 
         let style = Array::from_shape_vec((1, ref_s.len()), ref_s)?;
@@ -102,7 +102,7 @@ where
     Ok((ret, elapsed))
 }
 
-pub(super) async fn synth<'a, P, S>(
+pub(super) async fn synth<P, S>(
     model: Weak<Mutex<Session>>,
     text: S,
     pack: P,

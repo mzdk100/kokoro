@@ -2,8 +2,7 @@ use {
     log::warn,
     std::{collections::HashMap, sync::LazyLock},
 };
-
-const VOCAB_V10: LazyLock<HashMap<char, u8>> = LazyLock::new(|| {
+static VOCAB_V10: LazyLock<HashMap<char, u8>> = LazyLock::new(|| {
     let mut map = HashMap::new();
 
     map.insert(';', 1);
@@ -123,7 +122,7 @@ const VOCAB_V10: LazyLock<HashMap<char, u8>> = LazyLock::new(|| {
     map
 });
 
-const VOCAB_V11: LazyLock<HashMap<char, u8>> = LazyLock::new(|| {
+static VOCAB_V11: LazyLock<HashMap<char, u8>> = LazyLock::new(|| {
     let mut map = HashMap::new();
 
     map.insert(';', 1);
@@ -306,9 +305,9 @@ pub fn get_token_ids(phonemes: &str, v11: bool) -> Vec<i64> {
 
     for i in phonemes.chars() {
         let v = if v11 {
-            VOCAB_V11.get(&i).map(|i| *i)
+            VOCAB_V11.get(&i).copied()
         } else {
-            VOCAB_V10.get(&i).map(|i| *i)
+            VOCAB_V10.get(&i).copied()
         };
         match v {
             Some(t) => {
