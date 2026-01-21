@@ -13,8 +13,8 @@
 ## 前置条件
 
 - Rust编程语言
-- Tokio异步运行时
-- Rodio音频处理和播放的库（可选）
+- tokio异步运行时
+- voxudio音频处理和播放的库（可选）
 - 下载模型资源，在這裡可以找到[1.0模型](https://github.com/mzdk100/kokoro/releases/tag/V1.0)和[1.1模型](https://github.com/mzdk100/kokoro/releases/tag/V1.1)
 
 ## 特点
