@@ -493,7 +493,7 @@ fn yi_sandhi(word: &str, pinyins: &mut [String]) {
                 {
                     if let Some(i) = pinyins.get_mut(i) {
                         i.pop();
-                        i.push('1');
+                        i.push('2');
                     }
                 }
                 // "一" before non-tone4 should be yi4, e.g. 一天
