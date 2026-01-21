@@ -35,10 +35,7 @@ impl Stream for SynthStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.project().rx)
             .poll_recv(cx)
-            .map(|i| match i {
-                None => None,
-                Some(Response { data, took }) => Some((data, took)),
-            })
+            .map(|i| i.map(|Response { data, took }| (data, took)))
     }
 }
 
@@ -135,7 +132,7 @@ impl<S> Sink<(Voice, S)> for SynthSink<S> {
     }
 }
 
-pub(super) fn start_synth_session<'a, F, R, S>(
+pub(super) fn start_synth_session<F, R, S>(
     voice: Voice,
     synth_request_callback: F,
 ) -> (SynthSink<S>, SynthStream)

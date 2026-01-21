@@ -32,12 +32,7 @@ fn retone(p: &str) -> String {
                 i += 1;
             }
             // 组合字符替换（ɻ̩ 和 ɱ̩）
-            _ if i + 1 < chars.len()
-                && (
-                    (chars[i] == '\u{027B}' && chars[i+1] == '\u{0329}') ||  // ɻ̩
-                    (chars[i] == '\u{0271}' && chars[i+1] == '\u{0329}')
-                    // ɱ̩
-                ) =>
+            _ if !(i + 1 >= chars.len() || chars[i+1] != '\u{0329}' || chars[i] != '\u{027B}' && chars[i] != '\u{0271}') =>
             {
                 result.push('ɨ');
                 i += 2;
